@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mirror of Dementia — presentation</title>
+<style>
+  :root{ --bg:#0b0b0c; --fg:#eaeaea; --glass:#ffffff1c; }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg);
+             font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,"EB Garamond",Georgia,serif; }
+  header{ padding:18px 22px; text-align:center; font-weight:700; letter-spacing:.3px; }
+  .wrap{ height:calc(100% - 60px); padding:10px 16px; }
+  .stage{ height:100%; max-width:1400px; margin:0 auto; display:grid; gap:16px; grid-template-columns:1fr 1fr; }
+  .imagePane{ display:flex; align-items:center; justify-content:center; padding:8px; }
+  .imagePane img{ max-width:100%; max-height:86vh; object-fit:contain; background:#000;
+                  border-radius:16px; border:1px solid #2d2d2d; box-shadow:0 18px 50px rgba(0,0,0,.55); }
+  .textPane{ display:flex; align-items:center; justify-content:center; padding:8px 18px; }
+  .poem{ font-size:clamp(18px,2.1vw,28px); font-style:italic; white-space:pre-line; max-width:42ch; }
+  .controls{ position:fixed; right:14px; bottom:14px; display:flex; gap:8px; z-index:3; }
+  .btn{ appearance:none; border:0; border-radius:12px; padding:10px 14px; background:var(--glass); color:var(--fg); cursor:pointer; font-weight:700; }
+  .btn:hover{ background:#ffffff2b; }
+  .overlay{ position:fixed; inset:0; display:grid; place-items:center; background:#000000bb; backdrop-filter:blur(3px); z-index:4; }
+  .panel{ background:#111; border:1px solid #2e2e2e; border-radius:14px; padding:22px 24px; text-align:center; max-width:640px; }
+  .panel h2{ margin:0 0 8px 0; }
+  .panel p{ margin:0 0 12px 0; color:#cfd1d4; }
+  .error{ position:fixed; left:14px; bottom:14px; background:#b0002040; border:1px solid #b00020;
+          color:#ffd9df; padding:8px 10px; border-radius:10px; display:none; max-width:56ch; font-size:13px; z-index:5; }
+  @media (max-width:980px){
+    .stage{ grid-template-columns:1fr; grid-auto-rows:auto 1fr; }
+    .textPane{ order:2; }
+    .imagePane{ order:1; }
+    .imagePane img{ max-height:56vh; }
+  }
+</style>
+</head>
+<body>
+  <header>Mirror of Dementia</header>
+
+  <div class="wrap">
+    <div class="stage">
+      <div class="imagePane">
+        <img id="mirror-image" alt="Mirror image…" />
+      </div>
+      <div class="textPane">
+        <div id="mirror-text" class="poem"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="pauseBtn"  type="button">⏸︎ Pause</button>
+    <button class="btn" id="resumeBtn" type="button">▶ Resume</button>
+    <button class="btn" id="restartBtn" type="button">↺ Restart</button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h2>Click / tap to start</h2>
+      <p>One gesture is required to allow audio on phones/tablets. After that the sequence will play.</p>
+      <button class="btn" id="startBtn" type="button">Start</button>
+      <div style="margin-top:10px; font-size:12px; color:#9aa0a6">If something fails to load, use <em>Restart</em> ↺.</div>
+    </div>
+  </div>
+
+  <div class="error" id="errorBox"></div>
+
+  <audio id="effect" playsinline></audio>
+  <audio id="voice"  playsinline></audio>
+
+<script>
+/* --- Folders relative to index.html (GitHub Pages friendly) --- */
+const PHOTOS_BASES = ["photos/"];
+const SOUNDS_BASES = ["sounds/"];
+const VOICES_BASES = ["voices/"];
+
+/* --- Steps (new filenames with hyphens) --- */
+const steps = [
+  // 1
+  { type:"A", img:"mirror-of-dementia-1-1.png",
+    text:`“This is not me.
+This cannot be me.
+Why do these eyes look so heavy,
+when my heart still beats with seventeen summers inside it?”` },
+  { type:"B", img:"mirror-of-dementia-1-2.png",
+    effect:"angelic-harp-sound.mp3", voice:"mirror-1.mp3",
+    text:`“This is not me.
+This cannot be me.
+Why do these eyes look so heavy,
+when my heart still beats with seventeen summers inside it?”` },
+
+  // 2
+  { type:"A", img:"mirror-of-dementia-2-1.png",
+    text:`“I still hear children’s laughter in my ears.
+But they call me ‘Mother,’ they call me ‘Grandmother.’
+How can both be true?”` },
+  { type:"B", img:"mirror-of-dementia-2-2.png",
+    effect:"scary-horror-sound.mp3", voice:"mirror-2.mp3",
+    text:`“I still hear children’s laughter in my ears.
+But they call me ‘Mother,’ they call me ‘Grandmother.’
+How can both be true?”` },
+
+  // 3
+  { type:"A", img:"mirror-of-dementia-3-1.png",
+    text:`“They treat me as if I am ancient,
+as if my mind is made of broken glass.
+But inside, I am still seventeen.
+I am still running.
+I am still singing.
+Why can’t they see me?”` },
+  { type:"B", img:"mirror-of-dementia-3-2.png",
+    effect:"scary-horror-sound.mp3", voice:"mirror-3.mp3",
+    text:`“They treat me as if I am ancient,
+as if my mind is made of broken glass.
+But inside, I am still seventeen.
+I am still running.
+I am still singing.
+Why can’t they see me?”` },
+
+  // 4
+  { type:"A", img:"mirror-of-dementia-4-1.png",
+    text:`The glass says nothing is wrong.
+They all say it is me who is wrong.
+But I know — I know what I feel, I know what I see.
+And when they shake their heads, when they smile at me gently,
+something burns inside.
+I am not mad.
+I am not broken.
+It is the world that has slipped away,
+and I am left pounding against the silence.` },
+  { type:"B", img:"mirror-of-dementia-4-2.png",
+    effect:"scary-horror-sound.mp3", voice:"mirror-4.mp3",
+    text:`The glass says nothing is wrong.
+They all say it is me who is wrong.
+But I know — I know what I feel, I know what I see.
+And when they shake their heads, when they smile at me gently,
+something burns inside.
+I am not mad.
+I am not broken.
+It is the world that has slipped away,
+and I am left pounding against the silence.` },
+
+  // 5
+  { type:"A", img:"mirror-5-1.png",
+    text:`“I no longer recognize myself.
+The mirror lies.
+The memory lies.
+My name has been stolen.
+Does anyone still remember who I once was?”` },
+  { type:"B", img:"mirror-5-2.png",
+    effect:"scary-horror-sound.mp3", voice:"mirror-5.mp3",
+    text:`“I no longer recognize myself.
+The mirror lies.
+The memory lies.
+My name has been stolen.
+Does anyone still remember who I once was?”` }
+];
+
+/* --- Runtime --- */
+const imgEl    = document.getElementById('mirror-image');
+const textEl   = document.getElementById('mirror-text');
+const effectEl = document.getElementById('effect');
+const voiceEl  = document.getElementById('voice');
+const errorBox = document.getElementById('errorBox');
+
+const A_DISPLAY_MS = 3000;   // frames A show for 3s
+const GAP_AFTER_VOICE_MS = 900;
+
+let idx=0, paused=false, pending=null;
+
+function showError(msg){ errorBox.textContent = msg; errorBox.style.display='block'; setTimeout(()=> errorBox.style.display='none', 4200); }
+function clearTimers(){ if(pending){ clearTimeout(pending); pending=null; } effectEl.onended=null; voiceEl.onended=null; }
+function stopAudio(){ effectEl.pause(); voiceEl.pause(); effectEl.currentTime=0; voiceEl.currentTime=0; }
+
+function resolveWithFallback(el, file, bases, kind){
+  return new Promise((resolve)=>{
+    let i=0;
+    const tryNext=()=>{
+      if(i>=bases.length){ showError(kind.toUpperCase()+": "+file+" not found"); resolve(false); return; }
+      const url = bases[i] + file; i++;
+      const fail = ()=> tryNext();
+      if(kind==='image'){ el.onload=()=>resolve(true); el.onerror=fail; el.src=url; }
+      else{ el.onloadeddata=()=>resolve(true); el.onerror=fail; el.src=url; el.load(); }
+    };
+    tryNext();
+  });
+}
+
+async function showStep(){
+  if(idx>=steps.length) return;
+  const s = steps[idx];
+  textEl.textContent = s.text || "";
+  await resolveWithFallback(imgEl, s.img, PHOTOS_BASES, 'image');
+  clearTimers(); stopAudio();
+
+  if(s.type==='A'){
+    pending=setTimeout(()=>{ if(!paused){ idx++; showStep(); } }, A_DISPLAY_MS);
+  }else{
+    const hasEffect = s.effect ? await resolveWithFallback(effectEl, s.effect, SOUNDS_BASES, 'audio') : false;
+    const hasVoice  = s.voice  ? await resolveWithFallback(voiceEl,  s.voice,  VOICES_BASES, 'audio')  : false;
+    const afterAll  = ()=>{ pending=setTimeout(()=>{ if(!paused){ idx++; showStep(); } }, GAP_AFTER_VOICE_MS); };
+
+    if(hasEffect){
+      effectEl.play().then(()=>{
+        effectEl.onended=()=>{
+          if(hasVoice){ voiceEl.play().then(()=> voiceEl.onended=afterAll).catch(afterAll); }
+          else afterAll();
+        };
+      }).catch(()=>{
+        if(hasVoice){ voiceEl.play().then(()=> voiceEl.onended=afterAll).catch(afterAll); }
+        else afterAll();
+      });
+    }else if(hasVoice){
+      voiceEl.play().then(()=> voiceEl.onended=afterAll).catch(afterAll);
+    }else afterAll();
+  }
+}
+
+/* Controls */
+document.getElementById('pauseBtn').onclick  = ()=>{ paused=true; clearTimers(); effectEl.pause(); voiceEl.pause(); };
+document.getElementById('resumeBtn').onclick = ()=>{ if(!paused) return; paused=false;
+  if(!voiceEl.ended && voiceEl.src) voiceEl.play().catch(()=>{});
+  else if(!effectEl.ended && effectEl.src) effectEl.play().catch(()=>{});
+  else showStep();
+};
+document.getElementById('restartBtn').onclick= ()=>{ paused=false; idx=0; clearTimers(); stopAudio(); showStep(); };
+
+/* Start (required user gesture for audio on mobile) */
+document.getElementById('startBtn').onclick = async ()=>{
+  document.getElementById('overlay').style.display='none';
+  try{ await resolveWithFallback(effectEl,"angelic-harp-sound.mp3",SOUNDS_BASES,'audio'); effectEl.muted=true; await effectEl.play(); effectEl.pause(); effectEl.currentTime=0; effectEl.muted=false; }catch(e){}
+  try{ await resolveWithFallback(voiceEl,"mirror-1.mp3",VOICES_BASES,'audio'); voiceEl.muted=true; await voiceEl.play(); voiceEl.pause(); voiceEl.currentTime=0; voiceEl.muted=false; }catch(e){}
+  idx=0; showStep();
+};
+</script>
+</body>
+</html>
