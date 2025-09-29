@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mirror of Dementia</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<style>
+  :root{ --bg:#0b0b0c; --fg:#eaeaea; --glass:#ffffff1c; --accent:#cbb38d; }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg);
+             font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,serif; }
+  .wrap{ min-height:100%; display:grid; place-items:center; padding:10px 16px; }
+  .stage{ width:min(1400px,96vw); height:min(86vh,92svh); display:grid; gap:16px; grid-template-columns:1fr 1fr; }
+  .imagePane{ display:flex; align-items:center; justify-content:center; }
+  .frame{ width:100%; height:100%; background:#000; border-radius:16px; border:1px solid #2d2d2d;
+          box-shadow:0 18px 50px rgba(0,0,0,.55); position:relative; overflow:hidden; }
+  .slide{ position:absolute; inset:0; background-position:center; background-repeat:no-repeat; background-size:contain; opacity:0; transition:opacity .6s ease; }
+  .slide.show{ opacity:1; }
+  .textPane{ display:flex; align-items:center; justify-content:center; padding:0 18px; }
+  .poem{ font-size:clamp(18px,2.1vw,28px); white-space:pre-line; max-width:42ch; font-style:italic; }
+  .controls{ position:fixed; right:14px; bottom:14px; display:flex; gap:8px; z-index:3; }
+  .btn{ appearance:none; border:0; border-radius:12px; padding:10px 14px; background:var(--glass);
+        color:var(--fg); cursor:pointer; font-weight:700; }
+  .btn:hover{ background:#ffffff2b; }
+  .overlay{ position:fixed; inset:0; display:grid; place-items:center; background:#000000d0; backdrop-filter:blur(3px); z-index:4; }
+  .panel{ background:#111; border:1px solid #2e2e2e; border-radius:16px; padding:22px 24px; text-align:center; width:min(620px,92vw); }
+  .panel h1{ margin:0 0 8px 0; font-size:clamp(22px,3.5vw,30px); color:var(--accent); letter-spacing:.3px }
+  .panel p{ margin:.5rem 0 1rem; color:#d7d9dc; }
+  .panel .start{ font-size:16px; padding:12px 18px; }
+  .hint{ font-size:12px; opacity:.7; margin-top:.6rem }
+  .error{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+          background:#2a1515; border:1px solid #5c2a2a; color:#f3d9d9; padding:8px 12px; border-radius:10px; display:none; z-index:6; }
+  audio{ display:none; } /* hide native players */
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="stage">
+      <div class="imagePane">
+        <div class="frame" id="frame">
+          <div class="slide show" id="slide0" style="background-image:linear-gradient(180deg,#000,#111)"></div>
+          <!-- other slides are added dynamically -->
+        </div>
+      </div>
+      <div class="textPane">
+        <div id="mirror-text" class="poem"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Minimal controls -->
+  <div class="controls" aria-hidden="true">
+    <button id="pauseBtn"  class="btn" title="Pause">Pause</button>
+    <button id="resumeBtn" class="btn" title="Resume">Resume</button>
+    <button id="restartBtn" class="btn" title="Restart">Restart</button>
+  </div>
+
+  <!-- Start overlay -->
+  <div id="overlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="panel">
+      <h1>Mirror of Dementia</h1>
+      <p>Click <em>Start</em> to begin. The voice, text, and images are synchronized.</p>
+      <button id="startBtn" class="btn start" autofocus>Start</button>
+      <div class="hint">Press Space to pause/resume.</div>
+    </div>
+  </div>
+
+  <div id="errorBox" class="error" role="status" aria-live="polite"></div>
+
+  <!-- audio players -->
+  <audio id="effect" preload="auto"></audio>
+  <audio id="voice"  preload="auto"></audio>
+
+<script>
+/* === Files present in your folder === */
+const steps = [
+  { type:"A", img:"mirror-of-dementia-1-1.png", text:`“This is not me.
+This cannot be me.
+Why do these eyes look so heavy,
+when my heart still beats with seventeen summers inside it?”` },
+  { type:"B", img:"mirror-of-dementia-1-2.png", effect:"angelic-harp-sound.mp3", voice:"mirror-1.mp3",
+    text:`“This is not me.
+This cannot be me.
+Why do these eyes look so heavy,
+when my heart still beats with seventeen summers inside it?”` },
+
+  { type:"A", img:"mirror-of-dementia-2-1.png",
+    text:`“I still hear children’s laughter in my ears.
+But they call me ‘Mother,’ they call me ‘Grandmother.’
+How can both be true?”` },
+  { type:"B", img:"mirror-of-dementia-2-2.png", effect:"scary-horror-sound.mp3", voice:"mirror-2.mp3",
+    text:`“I still hear children’s laughter in my ears.
+But they call me ‘Mother,’ they call me ‘Grandmother.’
+How can both be true?”` },
+
+  { type:"A", img:"mirror-of-dementia-3-1.png",
+    text:`“They treat me as if I am ancient,
+as if my mind is made of broken glass.
+But inside, I am still seventeen.
+I am still running.
+I am still singing.
+Why can’t they see me?”` },
+  { type:"B", img:"mirror-of-dementia-3-2.png", effect:"scary-horror-sound.mp3", voice:"mirror-3.mp3",
+    text:`“They treat me as if I am ancient,
+as if my mind is made of broken glass.
+But inside, I am still seventeen.
+I am still running.
+I am still singing.
+Why can’t they see me?”` },
+
+  { type:"A", img:"mirror-of-dementia-4-1.png",
+    text:`The glass says nothing is wrong.
+They all say it is me who is wrong.
+But I know — I know what I feel, I know what I see.
+And when they shake their heads, when they smile at me gently,
+something burns inside.
+I am not mad.
+I am not broken.
+It is the world that has slipped away,
+and I am left pounding against the silence.` },
+  { type:"B", img:"mirror-of-dementia-4-2.png", effect:"scary-horror-sound.mp3", voice:"mirror-4.mp3",
+    text:`The glass says nothing is wrong.
+They all say it is me who is wrong.
+But I know — I know what I feel, I know what I see.
+And when they shake their heads, when they smile at me gently,
+something burns inside.
+I am not mad.
+I am not broken.
+It is the world that has slipped away,
+and I am left pounding against the silence.` },
+
+  { type:"A", img:"mirror-5-1.png",
+    text:`“I no longer recognize myself.
+The mirror lies.
+The memory lies.
+My name has been stolen.
+Does anyone still remember who I once was?”` },
+  { type:"B", img:"mirror-5-2.png", effect:"scary-horror-sound.mp3", voice:"mirror-5.mp3",
+    text:`“I no longer recognize myself.
+The mirror lies.
+The memory lies.
+My name has been stolen.
+Does anyone still remember who I once was?”` },
+
+  { type:"A", img:"mirror-6-1.png", text:"", duration:9000 }
+];
+
+const A_DISPLAY_MS = 3000;
+const GAP_AFTER_VOICE_MS = 900;
+
+const frame   = document.getElementById('frame');
+const textEl  = document.getElementById('mirror-text');
+const effectEl= document.getElementById('effect');
+const voiceEl = document.getElementById('voice');
+const overlay = document.getElementById('overlay');
+const errorBox= document.getElementById('errorBox');
+
+let slides = []; // created dynamically
+let idx=0, paused=false, pending=null;
+
+function showError(msg){
+  errorBox.textContent = msg;
+  errorBox.style.display='block';
+  setTimeout(()=> errorBox.style.display='none', 4200);
+}
+
+function clearTimers(){ if(pending){ clearTimeout(pending); pending=null; } effectEl.onended=null; voiceEl.onended=null; }
+function stopAudio(){ effectEl.pause(); voiceEl.pause(); effectEl.currentTime=0; voiceEl.currentTime=0; }
+
+function ensureSlides(){
+  // slide0 exists (background). Add as many slides as steps.
+  const needed = steps.length;
+  const existing = frame.querySelectorAll('.slide').length - 1; // without slide0
+  for(let i=existing+1; i<=needed; i++){
+    const d = document.createElement('div');
+    d.className = 'slide';
+    d.id = 'slide'+i;
+    frame.appendChild(d);
+  }
+  slides = [...frame.querySelectorAll('.slide')];
+}
+
+function switchSlide(to){
+  slides.forEach((s,i)=> s.classList.toggle('show', i===to));
+}
+
+function clearText(){ textEl.textContent=""; }
+function setText(t){ textEl.textContent = t || ""; }
+
+function setBackground(div, url){
+  div.style.backgroundImage = `url('${url}')`;
+}
+
+function preloadImage(url){
+  return new Promise((resolve)=>{ const i=new Image(); i.onload=()=>resolve(true); i.onerror=()=>resolve(false); i.src=url; });
+}
+
+async function showStep(){
+  if(idx>=steps.length){ return; }
+  const s = steps[idx];
+
+  clearText();
+  const slideIndex = idx + 1; // slide0 is the black gradient
+  const target = slides[slideIndex];
+  if(!target){ showError('Internal slide error. Please reload.'); return; }
+
+  const ok = await preloadImage(s.img);
+  if(ok){ setBackground(target, s.img); } else { showError('Image not found: '+s.img); }
+  switchSlide(slideIndex);
+
+  clearTimers(); stopAudio();
+
+  let displayTime = s.duration || A_DISPLAY_MS;
+
+  if(s.type==='A'){
+    pending=setTimeout(()=>{ if(!paused){ idx++; showStep(); } }, displayTime);
+  } else {
+    const afterAll = ()=>{ pending=setTimeout(()=>{ if(!paused){ idx++; showStep(); } }, GAP_AFTER_VOICE_MS); };
+    if(s.effect){
+      effectEl.src = s.effect;
+      effectEl.play().catch(()=>{});
+      effectEl.onended = ()=> {
+        if(s.voice){
+          voiceEl.src = s.voice;
+          voiceEl.play().then(()=>{ setText(s.text); }).catch(()=>{});
+          voiceEl.onended = afterAll;
+        } else afterAll();
+      };
+    } else if(s.voice){
+      voiceEl.src = s.voice;
+      voiceEl.play().then(()=>{ setText(s.text); }).catch(()=>{});
+      voiceEl.onended = afterAll;
+    } else afterAll();
+  }
+}
+
+/* Controls */
+document.getElementById('pauseBtn').onclick  = ()=>{ paused=true; effectEl.pause(); voiceEl.pause(); clearTimers(); };
+document.getElementById('resumeBtn').onclick = ()=>{ if(!paused) return; paused=false;
+  if(!voiceEl.ended && voiceEl.src) voiceEl.play().catch(()=>{});
+  else if(!effectEl.ended && effectEl.src) effectEl.play().catch(()=>{});
+  else showStep();
+};
+document.getElementById('restartBtn').onclick= ()=>{ paused=false; idx=0; clearTimers(); stopAudio(); switchSlide(0); clearText(); showStep(); };
+
+/* Start overlay */
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  overlay.style.display='none';
+  idx=0; showStep();
+});
+
+/* Init */
+window.addEventListener('load', ensureSlides);
+
+/* Keyboard: Space toggles pause/resume */
+window.addEventListener('keydown', (e)=>{
+  if(e.code==='Space'){ e.preventDefault();
+    if(document.getElementById('overlay').style.display!=='none') return; // ignore when overlay visible
+    if(voiceEl.paused && effectEl.paused){ document.getElementById('resumeBtn').click(); }
+    else { document.getElementById('pauseBtn').click(); }
+  }
+});
+</script>
+</body>
+</html>
